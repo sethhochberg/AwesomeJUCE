@@ -68,22 +68,29 @@ public:
 
 	//===========================Processing Variables============================
 	float m_fAwesomeGain;
+	float m_fWarmthGain;
+	float m_fMonitorAwesomeStatus;
+
 	float m_fXnLAwesome;
 	float m_fXnRAwesome;
 
 	float m_fXnL;
 	float m_fXnR;
+
 	float* m_fLeftBuffer;
 	float* m_fRightBuffer;
 
-	//===========================UI Standin Variables============================
-	float m_fAwesomeLevel;
-	float m_fWarmthLevel;
-	bool m_bMonitorAwesome;
+	//===========================UI============================
+	enum Parameters{m_fMonitorAwesome, m_fAwesomeLevel, m_fWarmthLevel, totalNumParam};
+	bool NeedsUIUpdate(){return UIUpdateFlag;};
+	void ClearUIUpdateFlag(){UIUpdateFlag=false;};
 
 private:
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AwesomeizerJuceAudioProcessor)
+
+	float UserParams[totalNumParam];
+	bool UIUpdateFlag;  
 };
 
 #endif  // PLUGINPROCESSOR_H_INCLUDED

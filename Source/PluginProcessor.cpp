@@ -10,11 +10,21 @@
 
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "AudioUtil.h"
 
 
 //==============================================================================
 AwesomeizerJuceAudioProcessor::AwesomeizerJuceAudioProcessor()
 {
+	UserParams[m_fAwesomeLevel] = 0.25f; 
+	UserParams[m_fWarmthLevel] = 1.0f;
+	UserParams[m_fMonitorAwesome] = 0.0f;
+
+	m_fAwesomeGain = UserParams[m_fAwesomeLevel];
+	m_fWarmthGain = calcLogControl(UserParams[m_fWarmthLevel]);
+	m_fMonitorAwesomeStatus = UserParams[m_fMonitorAwesome];
+
+	UIUpdateFlag = true; 
 }
 
 AwesomeizerJuceAudioProcessor::~AwesomeizerJuceAudioProcessor()
@@ -29,26 +39,59 @@ const String AwesomeizerJuceAudioProcessor::getName() const
 
 int AwesomeizerJuceAudioProcessor::getNumParameters()
 {
-    return 0;
+	return totalNumParam;
 }
 
 float AwesomeizerJuceAudioProcessor::getParameter (int index)
 {
-    return 0.0f;
+    switch(index)
+	 {
+		case m_fMonitorAwesome:
+			return UserParams[m_fMonitorAwesome];
+		case m_fAwesomeLevel:
+			UserParams[m_fAwesomeLevel] = m_fAwesomeGain;
+			return UserParams[m_fAwesomeLevel];
+		case m_fWarmthLevel:
+			UserParams[m_fWarmthLevel] = m_fWarmthGain;
+			return UserParams[m_fWarmthLevel];
+		default: return 0.0f;//invalid index
+	}
 }
 
 void AwesomeizerJuceAudioProcessor::setParameter (int index, float newValue)
 {
+	switch(index)
+	 {
+		case m_fMonitorAwesome:
+			UserParams[m_fMonitorAwesome] = newValue;
+			break;
+		case m_fAwesomeLevel:
+			UserParams[m_fAwesomeLevel] = newValue;
+			break;
+		case m_fWarmthLevel:
+			UserParams[m_fWarmthLevel] = newValue;
+			break;
+		default: return;
+	}
 }
 
 const String AwesomeizerJuceAudioProcessor::getParameterName (int index)
 {
-    return String::empty;
+    switch(index)
+	{
+		case m_fAwesomeLevel: return "Awesome Level";
+		case m_fWarmthLevel: return "Warmth Level";
+		case m_fMonitorAwesome: return "Monitor Only Awesomeness";
+		default: return String::empty;
+	}
 }
 
 const String AwesomeizerJuceAudioProcessor::getParameterText (int index)
 {
-    return String::empty;
+    if(index>=0 && index<totalNumParam)
+		return String(UserParams[index]);
+	else 
+		return String::empty;
 }
 
 const String AwesomeizerJuceAudioProcessor::getInputChannelName (int channelIndex) const
@@ -127,12 +170,6 @@ void AwesomeizerJuceAudioProcessor::prepareToPlay (double sampleRate, int sample
 {
     // Use this method as the place to do any pre-playback
     // initialisation that you need..
-
-	//Initialize UI standin variables
-	m_fAwesomeGain = 0.05;
-	m_fWarmthLevel = 0.01;
-	m_bMonitorAwesome = false;
-
 }
 
 void AwesomeizerJuceAudioProcessor::releaseResources()
@@ -145,6 +182,9 @@ void AwesomeizerJuceAudioProcessor::processBlock (AudioSampleBuffer& buffer, Mid
 {
     // This is the place where you'd normally do the guts of your plugin's
     // audio processing...
+	m_fAwesomeGain = UserParams[m_fAwesomeLevel];
+	m_fMonitorAwesomeStatus = UserParams[m_fMonitorAwesome];
+
     for (int channel = 0; channel < getNumInputChannels(); ++channel)
     {
 		const int iNumSamples = buffer.getNumSamples();
@@ -159,17 +199,13 @@ void AwesomeizerJuceAudioProcessor::processBlock (AudioSampleBuffer& buffer, Mid
 
 			//isolate difference between channels
 			m_fXnLAwesome = (m_fXnL + (m_fXnR * -1.0)) * m_fAwesomeGain;
-			m_fXnL = m_fXnL + m_fXnLAwesome;
+			m_fXnL += m_fXnLAwesome;
 
 			m_fXnRAwesome = (m_fXnR + (m_fXnL * -1.0)) * m_fAwesomeGain;
-			m_fXnR = m_fXnR + m_fXnRAwesome;
+			m_fXnR += m_fXnRAwesome;
 
-			if(m_fXnL >= 0.0) //clipping only on upper portion of waveform (nonlinear waveshaping)
-				m_fXnL = m_fXnL*m_fWarmthLevel;
-			if(m_fXnR >= 0.0)
-				m_fXnR = m_fXnR*m_fWarmthLevel;
-
-			if(m_bMonitorAwesome == true)
+			//route output to buffers 
+			if(m_fMonitorAwesomeStatus == 1.0f)
 			{
 				m_fLeftBuffer[i] = m_fXnLAwesome;
 				m_fRightBuffer[i] = m_fXnRAwesome; 
@@ -208,12 +244,50 @@ void AwesomeizerJuceAudioProcessor::getStateInformation (MemoryBlock& destData)
     // You should use this method to store your parameters in the memory block.
     // You could do that either as raw data, or use the XML or ValueTree classes
     // as intermediaries to make it easy to save and load complex data.
+
+	//Make sure public data is current (through any param conversions)
+
+	XmlElement root("Root");
+	XmlElement *el;
+	el = root.createNewChildElement("AwesomeLevel");
+	el->addTextElement(String(UserParams[m_fAwesomeLevel]));
+	el = root.createNewChildElement("MonitorAwesome");
+	el->addTextElement(String(UserParams[m_fMonitorAwesome]));
+	el = root.createNewChildElement("WarmthLevel");
+	el->addTextElement(String(UserParams[m_fWarmthLevel]));
+	copyXmlToBinary(root,destData);
 }
 
 void AwesomeizerJuceAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
-    // You should use this method to restore your parameters from this memory block,
-    // whose contents will have been created by the getStateInformation() call.
+	// You should use this method to restore your parameters from this memory block,
+	// whose contents will have been created by the getStateInformation() call.
+
+	XmlElement* pRoot = getXmlFromBinary(data,sizeInBytes);
+
+	if(pRoot!=NULL)
+	{
+		forEachXmlChildElement((*pRoot),pChild)
+		{
+			if(pChild->hasTagName("AwesomeLevel"))
+			{
+				String text = pChild->getAllSubText();
+				setParameter(m_fAwesomeLevel,text.getFloatValue());
+			}
+			else if(pChild->hasTagName("MonitorAwesome"))
+			{
+				String text = pChild->getAllSubText();
+				setParameter(m_fMonitorAwesome,text.getFloatValue());
+			}
+			else if(pChild->hasTagName("WarmthLevel"))
+			{
+				String text = pChild->getAllSubText();
+				setParameter(m_fWarmthLevel,text.getFloatValue());
+			}
+		}
+		delete pRoot;
+		UIUpdateFlag = true; //Request UI update
+	}
 }
 
 //==============================================================================
