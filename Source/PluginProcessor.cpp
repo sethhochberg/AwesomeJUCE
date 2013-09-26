@@ -127,6 +127,12 @@ void AwesomeizerJuceAudioProcessor::prepareToPlay (double sampleRate, int sample
 {
     // Use this method as the place to do any pre-playback
     // initialisation that you need..
+
+	//Initialize UI standin variables
+	m_fAwesomeGain = 0.05;
+	m_fWarmthLevel = 0.01;
+	m_bMonitorAwesome = false;
+
 }
 
 void AwesomeizerJuceAudioProcessor::releaseResources()
@@ -141,9 +147,39 @@ void AwesomeizerJuceAudioProcessor::processBlock (AudioSampleBuffer& buffer, Mid
     // audio processing...
     for (int channel = 0; channel < getNumInputChannels(); ++channel)
     {
-        float* channelData = buffer.getSampleData (channel);
+		const int iNumSamples = buffer.getNumSamples();
+		m_fLeftBuffer = buffer.getSampleData(0);
+		m_fRightBuffer = buffer.getSampleData(1);
+		
+		for (int i = 0; i < iNumSamples; i++)
+		{
+			//grab single samples
+			m_fXnL = m_fLeftBuffer[i];
+			m_fXnR = m_fRightBuffer[i];
 
-        // ..do something to the data...
+			//isolate difference between channels
+			m_fXnLAwesome = (m_fXnL + (m_fXnR * -1.0)) * m_fAwesomeGain;
+			m_fXnL = m_fXnL + m_fXnLAwesome;
+
+			m_fXnRAwesome = (m_fXnR + (m_fXnL * -1.0)) * m_fAwesomeGain;
+			m_fXnR = m_fXnR + m_fXnRAwesome;
+
+			if(m_fXnL >= 0.0) //clipping only on upper portion of waveform (nonlinear waveshaping)
+				m_fXnL = m_fXnL*m_fWarmthLevel;
+			if(m_fXnR >= 0.0)
+				m_fXnR = m_fXnR*m_fWarmthLevel;
+
+			if(m_bMonitorAwesome == true)
+			{
+				m_fLeftBuffer[i] = m_fXnLAwesome;
+				m_fRightBuffer[i] = m_fXnRAwesome; 
+			}
+			else
+			{
+				m_fLeftBuffer[i] = m_fXnL;
+				m_fRightBuffer[i] = m_fXnR;
+			}
+		}
     }
 
     // In case we have more outputs than inputs, we'll clear any output

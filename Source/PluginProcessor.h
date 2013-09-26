@@ -66,6 +66,21 @@ public:
     void getStateInformation (MemoryBlock& destData);
     void setStateInformation (const void* data, int sizeInBytes);
 
+	//===========================Processing Variables============================
+	float m_fAwesomeGain;
+	float m_fXnLAwesome;
+	float m_fXnRAwesome;
+
+	float m_fXnL;
+	float m_fXnR;
+	float* m_fLeftBuffer;
+	float* m_fRightBuffer;
+
+	//===========================UI Standin Variables============================
+	float m_fAwesomeLevel;
+	float m_fWarmthLevel;
+	bool m_bMonitorAwesome;
+
 private:
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AwesomeizerJuceAudioProcessor)
